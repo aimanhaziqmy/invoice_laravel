@@ -68,14 +68,14 @@ const SubTotal = () => {
         total += item.quantity * item.unit_price;
     });
     return total;
-}
+};
 
 const Total = () => {
     return SubTotal() - form.value.discount;
-}
+};
 
 const onSave = () => {
-    if(listCart.value.length>=1){
+    if (listCart.value.length >= 1) {
         let subtotal = 0;
         subtotal = SubTotal();
 
@@ -83,23 +83,71 @@ const onSave = () => {
         total = Total();
 
         const formData = new FormData();
-        formData.append('invoice_item', JSON.stringify(listCart.value));
-        formData.append('customer_id', customer_id.value);
-        formData.append('date', form.value.date);
-        formData.append('due_date', form.value.due_date);
-        formData.append('number', form.value.number);
-        formData.append('reference', form.value.reference);
-        formData.append('terms_and_conditions', form.value.terms_and_conditions);
-        formData.append('discount', form.value.discount);
-        formData.append('subtotal', subtotal);
-        formData.append('total', total);
+        formData.append("invoice_item", JSON.stringify(listCart.value));
+        formData.append("customer_id", customer_id.value);
+        formData.append("date", form.value.date);
+        formData.append("due_date", form.value.due_date);
+        formData.append("number", form.value.number);
+        formData.append("reference", form.value.reference);
+        formData.append(
+            "terms_and_conditions",
+            form.value.terms_and_conditions
+        );
+        formData.append("discount", form.value.discount);
+        formData.append("subtotal", subtotal);
+        formData.append("total", total);
 
-        axios.post('/api/add_invoice', formData)
+        axios.post("/api/add_invoice", formData);
         listCart.value = [];
-        router.push('/')
+        router.push("/");
     }
-}
+};
 
+const uploadFile = (event) => {
+    let file = event.target.files[0];
+    var fetchedData = [];
+    //convert to blob for pdf and image
+    let blob = new Blob([file], { type: file.type });
+    var data = new FormData();
+    data.append("file", blob); // This is file object
+
+    var xhr = new XMLHttpRequest();
+
+    xhr.addEventListener("readystatechange", function () {
+        if (this.readyState === this.DONE) {
+
+            fetchedData = JSON.parse(this.responseText);
+            var dataArray = fetchedData.result[0].prediction;
+            console.log('dataArray', dataArray)
+            var invoicenumber = dataArray.find(item => item.label === "invoice_number");
+            var invoicedate = dataArray.find(item => item.label === "invoice_date");
+            var invoiceamount = dataArray.find(item => item.label === "invoice_amount");
+            var sellername = dataArray.find(item => item.label === "seller_name");
+            var subtotal = dataArray.find(item => item.label === "subtotal");
+
+            console.log('invoicenumber', invoicenumber.ocr_text);
+            form.value.number = invoicenumber.ocr_text;
+            form.value.date = invoicedate.ocr_text;
+            form.value.total = invoiceamount.ocr_text;
+            form.value.firstname = sellername.ocr_text;
+            form.value.subtotal = subtotal.ocr_text;
+
+        }
+    });
+
+    xhr.open(
+        "POST",
+        "https://app.nanonets.com/api/v2/OCR/Model/1f83b1e0-2fca-45c6-87a6-a2aba450671d/LabelFile/?async=false"
+    );
+    xhr.setRequestHeader(
+        "authorization",
+        "Basic " + btoa(":")
+    );
+
+    xhr.send(data);
+    // find the label: invoice_number in the array
+    // const invoiceObject = dataArray.find(item => item.label === "invoice");
+};
 </script>
 <template>
     <div class="container">
@@ -108,7 +156,14 @@ const onSave = () => {
                 <div>
                     <h2 class="invoice__title">New Invoice</h2>
                 </div>
-                <div></div>
+                <!-- File Uploader Button -->
+                <input
+                    type="file"
+                    @change="uploadFile($event)"
+                    accept=".pdf, .jpg, .jpeg, .png"
+                    capture
+                    class="btn btn-light"
+                />
             </div>
 
             <div class="card__content">
@@ -201,7 +256,10 @@ const onSave = () => {
                             RM {{ itemcart.quantity * itemcart.unit_price }}
                         </p>
                         <p v-else>RM 0</p>
-                        <p style="color: red; font-size: 24px; cursor: pointer" @click="removeItem(i)">
+                        <p
+                            style="color: red; font-size: 24px; cursor: pointer"
+                            @click="removeItem(i)"
+                        >
                             &times;
                         </p>
                     </div>
@@ -228,15 +286,21 @@ const onSave = () => {
                     <div>
                         <div class="table__footer--subtotal">
                             <p>Sub Total</p>
-                            <span>RM {{ SubTotal() }}</span>
+                            <span v-if="form.subtotal">RM {{ form.subtotal }}</span>
+                            <span v-else>RM {{ SubTotal() }}</span>
                         </div>
                         <div class="table__footer--discount">
                             <p>Discount</p>
-                            <input type="text" class="input" v-model="form.discount" />
+                            <input
+                                type="text"
+                                class="input"
+                                v-model="form.discount"
+                            />
                         </div>
                         <div class="table__footer--total">
                             <p>Grand Total</p>
-                            <span>RM {{ Total() }}</span>
+                            <span v-if="form.total">RM {{ form.total }}</span>
+                            <span v-else>RM {{ Total() }}</span>
                         </div>
                     </div>
                 </div>
